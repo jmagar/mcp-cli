@@ -2,7 +2,14 @@
 
 import meow from 'meow'
 import './eventsource-polyfill.js'
-import { runWithCommand, runWithConfig, runWithConfigNonInteractive, runWithSSE, runWithURL } from './mcp.js'
+import {
+  runWithCommand,
+  runWithConfig,
+  runWithConfigNonInteractive,
+  runWithSSE,
+  runWithURL,
+  runListToolsNonInteractive,
+} from './mcp.js'
 import { purge } from './config.js'
 
 const cli = meow(
@@ -18,6 +25,7 @@ const cli = meow(
     $ mcp-cli [--config config.json] call-tool <server_name>:<tool_name> [--args '{"key":"value"}']
     $ mcp-cli [--config config.json] read-resource <server_name>:<resource_uri>
     $ mcp-cli [--config config.json] get-prompt <server_name>:<prompt_name> [--args '{"key":"value"}']
+    $ mcp-cli [--config config.json] list-tools-for <server_name>
 
 	Options
 	  --config, -c    Path to the config file
@@ -37,6 +45,12 @@ const cli = meow(
         type: 'boolean',
         shortFlag: 'e',
       },
+      url: {
+        type: 'string',
+      },
+      sse: {
+        type: 'string',
+      },
       args: {
         type: 'string',
       },
@@ -44,23 +58,22 @@ const cli = meow(
   },
 )
 
-if (cli.input[0] === 'purge') {
-  purge()
-} else if (
-  cli.input.length >= 2 &&
-  (cli.input[0] === 'call-tool' || cli.input[0] === 'read-resource' || cli.input[0] === 'get-prompt')
-) {
-  // Non-interactive mode: mcp-cli [--config config.json] <command> <server-name>:<target> [--args '{}']
-  const [command, serverTarget] = cli.input
-  const [serverName, target] = serverTarget.split(':')
-  await runWithConfigNonInteractive(cli.flags.config, serverName, command, target, cli.flags.args)
+if (cli.input[0] === 'call-tool' || cli.input[0] === 'read-resource' || cli.input[0] === 'get-prompt') {
+  runWithConfigNonInteractive(cli.flags.config, cli.input[0], cli.input[1], cli.flags.args);
+} else if (cli.input[0] === 'list-tools-for') {
+  runListToolsNonInteractive(cli.flags.config, cli.input[1]);
+} else if (cli.input[0] === 'npx' || cli.input[0] === 'node') {
+  const [command, ...args] = cli.input;
+  runWithCommand(command, args, cli.flags.passEnv ? process.env : undefined);
+} else if (cli.input[0] === 'purge') {
+  purge();
 } else if (cli.input.length > 0) {
-  const [command, ...args] = cli.input
-  await runWithCommand(command, args, cli.flags.passEnv ? process.env : undefined)
+  const [command, ...args] = cli.input;
+  runWithCommand(command, args, cli.flags.passEnv ? process.env : undefined);
 } else if (cli.flags.url) {
-  await runWithURL(cli.flags.url)
+  runWithURL(cli.flags.url);
 } else if (cli.flags.sse) {
-  await runWithSSE(cli.flags.sse)
+  runWithSSE(cli.flags.sse);
 } else {
-  await runWithConfig(cli.flags.config)
+  runWithConfig(cli.flags.config);
 }

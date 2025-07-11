@@ -284,3 +284,29 @@ export async function runWithSSE(uri) {
 export async function runWithURL(uri) {
   await connectRemoteServer(uri, (authProvider) => new StreamableHTTPClientTransport(new URL(uri), { authProvider }))
 }
+
+export async function runListToolsNonInteractive(configPath, serverName) {
+  let client;
+  try {
+    const config = readConfig(configPath, { silent: true });
+    if (!config || !config.mcpServers || !config.mcpServers[serverName]) {
+      console.error(JSON.stringify({ error: `Server ${serverName} not found in config` }));
+      process.exit(1);
+    }
+    const serverConfig = config.mcpServers[serverName];
+    const transport = new StdioClientTransport(serverConfig.command, serverConfig.args, serverConfig.env);
+    client = createClient(transport);
+    await client.connect();
+
+    const result = await client.listTools();
+    console.log(JSON.stringify(result, null, 2));
+    process.exit(0);
+  } catch (error) {
+    console.error(JSON.stringify({ error: error.message }));
+    process.exit(1);
+  } finally {
+    if (client) {
+      client.close();
+    }
+  }
+}
