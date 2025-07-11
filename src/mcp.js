@@ -286,27 +286,33 @@ export async function runWithURL(uri) {
 }
 
 export async function runListToolsNonInteractive(configPath, serverName) {
-  let client;
   try {
-    const config = readConfig(configPath, { silent: true });
-    if (!config || !config.mcpServers || !config.mcpServers[serverName]) {
-      console.error(JSON.stringify({ error: `Server ${serverName} not found in config` }));
-      process.exit(1);
+    const defaultConfigFile = getClaudeConfigPath()
+    const config = await readConfig(configPath || defaultConfigFile, { silent: true });
+    if (!config.mcpServers || isEmpty(config.mcpServers)) {
+      throw new Error('No mcp servers found in config');
     }
+
     const serverConfig = config.mcpServers[serverName];
-    const transport = new StdioClientTransport(serverConfig.command, serverConfig.args, serverConfig.env);
-    client = createClient(transport);
-    await client.connect();
+    if (!serverConfig) {
+      throw new Error(`Server '${serverName}' not found in config`);
+    }
+
+    if (serverConfig.env) {
+      serverConfig.env = { ...serverConfig.env, PATH: process.env.PATH };
+    }
+
+    const transport = new StdioClientTransport(serverConfig);
+    const client = await createClient();
+    await client.connect(transport);
 
     const result = await client.listTools();
+    
+    await client.close();
     console.log(JSON.stringify(result, null, 2));
     process.exit(0);
-  } catch (error) {
-    console.error(JSON.stringify({ error: error.message }));
+  } catch (err) {
+    console.error(JSON.stringify({ error: err.message }, null, 2));
     process.exit(1);
-  } finally {
-    if (client) {
-      client.close();
-    }
   }
 }
